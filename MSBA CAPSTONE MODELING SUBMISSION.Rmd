@@ -1,0 +1,2263 @@
+---
+title: "Zero to Coke Hero: MSBA Capstone Spring 2024"
+author: "Ian Donaldson, Michael Tom, Andrew Walton, Jake Jarrard"
+date:  "`r format(Sys.Date(), '%B %d, %Y')`"
+output:
+  html_document:
+    css: custom-styles.css
+    theme: null
+    highlight: null
+    toc: true
+    toc_float: false
+---
+
+# ML Introduction, Purpose, & Objectives
+
+> Project Goal:
+
+> Develop a framework for analyzing historical sales of Swire and competitor products to develop a machine learning model that predicts and prescibes the best products to launch, expected demand, best time of the year, region, and/or optimal price. 
+
+> Business Problem:
+
+> Swire Coca-Cola operates extensively, producing, selling, and distributing beverages across 13 states in the American West. The company is known for its regular introduction of new, often limited-time, products aimed at stimulating market demand. However, predicting accurate demand for these innovative products remains a significant challenge. Historical data provides some insight but is insufficient for precise forecasting due to variations in regional and demographic appeal.
+
+> The firm stands at the forefront of the Western US beverage distribution sector, continually launching limited edition products to maintain consumer interest and market dominance. Yet, the uncertainty in demand forecasting for these unique items presents risks of either overproduction or shortages, each carrying potential financial and reputational impacts. The project aims to leverage  historical sales data to enhance the accuracy of demand predictions for future innovative offerings. In essence can the data science team do a better job of predicting demand for new innovation products than a traditional market research survey, or the gut instinct of a seasoned sales manager?
+
+> Ultimately the following questions should be answered for any products worth purusing:
+
+> Product 1: Which 13 weeks of the year would this product perform best in the market? What is the forecasted demand, in weeks, for those 13 weeks?
+
+> Product 2: Swire plans to release this product 2 weeks prior to Easter and 2 weeks post Easter. What will the forecasted demand be, in weeks, for this product?
+
+> Product 3: Which 13 weeks of the year would this product perform best in the market? What is the forecasted demand, in weeks, for those 13 weeks?
+
+> Product 4:  Swire plans to release this product for the duration of 1 year but only in the Northern region. What will the forecasted demand be, in weeks, for this product?
+
+> Product 5: Swire plans to release this product for 13 weeks, but only in one region. Which region would it perform best in? 
+
+> Product 6: Swire plans to release this product for 6 months. What will the forecasted demand be, in weeks, for this product?
+
+> Product 7: Swire plans to release this product in the Southern region for 13 weeks. What will the forecasted demand be, in weeks, for this product?
+
+
+> Analytic Problems:
+
+> The analytics problem at hand involves developing a robust framework for analyzing historical sales data of Swire and competitor products. The primary objective is to construct a predictive machine learning model that forecasts sales but in addition other models as simple as multiple linear regression for prescribing the optimal products to launch. This entails estimating expected demand, determining the best timing for launch, and recommending pricing strategies. A significant challenge lies in managing the variability in release durations of both historical and future products, which span from 13 weeks to six months. As these are innovation products many key feature simply do not exist in the historical data adding layers of complexity to the modeling problem.
+
+> Purpose of this Notebook: 
+
+> The purpose of this notebook is to first provide a high level overview of the ML process and results for the Swire Capstone project. The project is focused on forecasting sales for new products and existing products with new flavors. The question of which potential innovation items to model is broken down into 7 key sections. The goal is to provide a high level overview of the results from multiple linear regressions that served as the basis for the recommended products to further modeling using XGBoost. The results from the XGBoost models will be used to provide further recommendations on which products to launch based on expected demand and pricing. By the end of this notebook, we will have a clear understanding of the potential products to launch and the expected sales for each product, while also answering the key unique questions posed by Swire to each innovation.
+
+## Data Preparation & Feature Engineering
+
+> Given the data size (24M rows), where each row represents a transaction between a manufacturer of soft drinks and an unknown vendor in 13 western US states, the term "Data Mining" could not be more descriptive of the task at hand. While each row looks similar to the other, each real-world sales transaction captured within each observation is very different from its neighbors. Preparing the data required far more thought than an initial glance would lead. We realized that the Swire data set was hundreds (maybe thousands) of data sets combined and aggregated into one massive 2D frame. With that, our first step was ensuring that the data was whole, devoid of errors and blanks - this was typically the case, and we only had to impute .2% of missing values by running simple text analytics on the data frame to ensure it was going to work with any ML algorithm. The data set provided was very well constructed and generally error-free. 
+
+> Scaling the data down to handle fewer manageable observations proved to be the first task, and it would be conducted differently for any given question. The outliers that we observed when sampling the data were "natural" outliers, and they exist throughout the data. We observed instances where distributors held firm competitive leads in different geographic areas (Market Keys) and, at times, made huge sales, captured in some rows, that threw off an average size of most transactions. These outliers, however, were not errors; they were simply a natural effect of doing business, necessary to moving inventory and generating profit. In several instances, we observed single cases of soft drinks sold at 100x below average price, as if a freebie or incentive was offered to move the product. In other cases, many rows reflected huge inventory sold at standard prices with a 100x dollar sales value given the size of the deal. We observed, across subsections of soft drinks, that the Kansas market was an outlier in and of itself: 3 unique zip codes in 3 unique market keys sold thousands of products beyond the figures of much more significant market areas in heavily populated places such as Seattle, Washington. None of these interpretations could be understood without sampling the data along clear segmented lines (by flavor, brand, manufacturer.) None of the outliers in any sub-dataset proved to be erroneous, and we discarded no outliers to accommodate the need for accuracy in our modeling. 
+
+> A tedious element of data preparation was understanding the Market Keys and creating appropriate bins to capture them adequately. If market keys spanned multiple US states, we binned into a general geographic region such as "NORTHERN" or "MOUNTAIN." If other market keys were solidly inside a specific state and metro area, we assigned them to a more specific region, such as "COLORADO" or "NEW MEXICO." The diversity of each market key was profound, with some market keys spanning huge rural areas and few towns and other market keys representing equally sized populations in three or fewer zip codes. There is far more to explore regarding market keys and geographic regions, including incorporating US Census data. Given the scope of the task, we did not incorporate census data into our calculations. However, we see it as an influential additive element to future more specific targeting of products to local areas. 
+
+> The ITEM column represented most of the data contained in other rows of the data frame. We spent much time culling information from each ITEM captured in other variables within observations. As an example, "PACKAGE" was formally captured in a column within the entire dataset, but it was also represented in the ITEM column as well; so too, "diet," "enhanced water," and "energy" were correctly flagged in each observation, and noted within the ITEM category. Handling and removing redundancy proved essential as "ITEMS" shrinks dramatically when these redundant elements are strategically excised from the ITEM column. By cleaning up the ITEM column, we reduced what seemed like an infinite number of products of a unique flavor down to a small handful of manageable ITEMS that could then be easily manipulated in an ML model. The PACKAGE column was of much interest, and ultimately, we broke down each PACKAGE description (separated by spaces) into a one-hot-encoded element for each observation. Doing so made it much easier to compare products and use our models to divine value from the variety of packaging that exists in combination. The importance of the information in the PACKAGE column can not be overstated. Moreover, we caught ourselves saying that "Swire and competitors are mostly packaging and delivery companies." Swire, as a client, proved keenly interested in "packaging" in its questions. Through our data preparation and subsequent feature engineering, each string and substring in any given row has a fuzzy albeit real numeric value and proved critical to our modeling; the key was removing redundant information in each row. 
+
+
+## Modeling Process
+
+> Our modeling process went from simple and fun to complex and technical. First, we used elementary multiple linear regression models natively built into R to dive in and understand each of the seven tasks. Each team member utilized a standardized recipe to prepare data and then ran a GLM on three subsections of the data to answer each question. First, we sampled 10% of the data and filtered it by "BRAND" related to the innovation flavor. We also filtered by "flavor" to observe competitor products, estimate demand, and identify the coefficients of the properties of products that drove demand for that particular flavor. We made data frames of individual flavors and brands to compare and contrast both to see similarities and observe initial anecdotes of the market space where a specific innovation flavor could quickly appear. In some instances, it was clear that Swire concocted ideas that were easy wins. In other cases, some ideas likely fail to succeed from a quick review of descriptive analytics and the output of a GLM. From this initial process, we focused on three specific innovation products worthy of deeper analysis. A note on our use of Linear Regression models: we only used this model to gain immediate insight into our products, we did not use Train/Test splits to run predictive models to reinforce our decision making, but the output of these models gave us enough initial information to make simple decisions based on the client questions put forth. 
+
+> We entertained some naive ideas, assuming that the data would lead us to answer complicated questions such as estimating demand for a product that never existed. We thought it possible (or easy) to create data for innovation products to be utilized as secondary test data to divine unit sales. We went so far as to generate synthetic data for extrapolating unit sales from elements that did not exist but were drawn from assumptions in the data. Given the disparity between existing model assumptions trained and tested on actual historical data and the distinct characteristics of innovation product scenarios, we soon faced almost insurmountable technical problems. This forced us to return to basics and lean on time-tested ML processes to become even more knowledgeable about our products and domain. This was a hard-earned lesson. 
+
+> Our team relied on eXtreme Gradient Boosting (XGBOOST) due to its highly efficient and versatile implementation of gradient-boosted decision trees designed for speed and performance. Given its precision in making predictions, we decided to use this method, taking our assumptions of the initial linear models to the next level. The best way forward for us was to know with as much accuracy as possible what elements of products were more highly favored or influential than others in creating demand. We used XGBOOST to break down and evaluate the assumptions we made about each product with an extremely high level of accuracy. Knowing the elements of the innovative products, based on the significant factors that sell competitively similar products, would be the primary way to answer client questions without resorting to even more sophisticated methods to divine near-impossible answers. We engineered our datasets into one-hot-encoded, manageable, more comprehensive tables and ran them through our XGBOOST models. If the task at hand was a classic prediction problem, we would feel very optimistic about the quality of our models predictive power. Using this predictive power in a different way, we drew upon the accuracy and output of our XGBOOST models to bolster our assumptions and solutions in order to provide Swire with very solid answers. In this case, and to be sure our models could answer questions, we split all our data into Train/Test sets and employed 5 fold cross validation techniques to ensure we were not contaminating data. The results of the XGBOOST models almost always reinforced the initial information gleaned from the GLM models, and then added better information with high quality predictive power to substantiate our claims. 
+
+> We employed the XGBOOST model on innovation products that had more in common with similar historic products. We did not employ XGBOOST on innovation products that, upon initial review, had more disparate properties in common with historical products that they could potentially be grouped among. That is not to say we underestimate the effectiveness of a totally new and unique package or flavor, but given we can only baseline customer expectations on past behavior, our objective was to identify innovation products that showed more consistency with neighboring products. 
+
+## Model Performance
+
+> Again, if this was a classic prediction problem, where we had to estimate the unit sales of a string of transactions we could almost guarantee excellent results.  Multiple iterations of our XGBOOST models on training and testing data consistently returned R-squared and adjusted R-squared in the high .90s. Our models demonstrated remarkable predictive accuracy, achieving an impressive R-square and adjusted R-square of around 0.95 in many instances, indicating that it successfully captured most of the variance in our engineered dataset. While there are slight variations in MAE, RMSE, and MAPE between the training and testing phases, these discrepancies highlight the model's nuanced understanding of the data rather than significant shortcomings. In this case, we are highly confident in the claims, suggestions, and recommendations we make about the historic (real) products relative to innovation products for the benefit of Swire. That said, we owe almost all of our model performance to the very highly correlated UNIT_SALES to DOLLAR_SALES - these two variables are obviously very powerful together. When we remove DOLLAR_SALES from our models, the R2 drops to over .50 for training and testing. However, what we are left with very effectively identifies the additional properties of soft drink sales that are independent of sales price. 
+
+> We admit that the quality of our model doesn't answer specific questions directly; there is a great deal of interpretation and insight we must provide to the client in order to hit home runs. We also attribute its predictive power to the stability and reliability of the Swire dataset. So what we can say is that the data is good, even if it has been aggregated together and some of the every day elements of sales transactions and the consumption habits of consumers are long lost.  Our models also only explain part of our final recommendations that we will provide to the client, Swire. The modeling that follows essentially gives us the minimal context to begin to argue for our recommendations. 
+
+> A note on DEMAND: Across this effort, "demand" is conceptualized not as a direct measure of consumer interest, but as a variable that varies significantly across different products and categories. The use of "unit sales" as a proxy for demand is inadequate due to the presence of aggregated sales agreements between manufacturers and retailers, which can distort actual demand metrics. Therefore, the determination of demand will be approached through alternative prescriptive analytics methodologies, separate from the current machine learning framework, to address its multifaceted nature effectively.  
+
+## Conclusion - Results & Recommendations
+
+> It is obvious that Swire's data science team, our client, hopes to get ahead of its marketing department's costly and laborious market surveys and product testing efforts related to innovation products. Predicting consumer interest in a product can not be done in a vaccuum. However, we, like our clients at Swire, are believers in data science and machine learning and we believe that, like a well crafted algorithm, we can get very good at predicting what may be successful according to historic data, even if that data is an amalgamation of predecessor products or based on elements of past success. 
+
+> For our presentation to Swire, we will present a clear evaluation of 2 or 3 of the questions asked of us. We will draw on the power of the following effort and lessons learned to create a demand forecast from pricing optimization strategies (not illustrated in this notebook). What we present will be drawn from conclusions made in this notebook from the exploration of innovation ideas and historical neighbors. 
+
+> Ultimately our goal is to create an innovation data set, something that represents and resembles the essential elements of a successful historical product without violating best practices in data science and ML modeling. We also are cautious in making statements that we cannot back up without data and results of our models. Once we have that stable footing, our team will use prescriptive analytics to make suggestions for our client that can get well ahead of market surveys and divining consumer interest through taste tests at state fairs. Whether we can create that data set remains to be seen, but we are confident we are much of the way there and we can, after this modeling exercise, answer most of our clients questions without making up statistics on the spot. 
+
+# SECTION SUMMARIES
+
+> We have provided the following modeling in several sections, each focusing on the seven potential Swire innovation products. These aim to provide the high-level initial results from multiple linear regressions that served as the basis for recommended products to model using XGBoost. Summaries of each follow. Some comments are provided in individual sections when necessary. Most comments are captured inside the R code output. Most code has been suppressed mainly as it has lengthy output. We have generally included the exploration of each proposed item using a GLM, mostly for our own edification and education. From there we chose three products we felt had, intially, the most promise to pursue further. We rallied around those three products using XGBOOSTED models to get deep into their properties and provide our assessments and recommendations. 
+
+## PRODUCT 1: Diet Smash Plum 11Small 4One
+
+> Analysis: There are two innovation aspects involved: a new package for Diet Smash and adding an existing flavor (Plum), that has never been a part of the Diet Smash line up of drinks. The linear regressions indicate high potential for forecasting, especially for the small Plum Multiple Linear regressions. Diet Smash shows significance in terms of seasonality, particularly in Summer and Winter. However, Plum by itself is on the edge of not being significant for Summer and Winter. Packaging alone is not as strong for Plum and Diet Smash. Diet Smash comes in two regular types with one size that ran for four weeks. The regression in the innovation data frame suggests PACKAGE12SMALL 24ONE CUP as the configuration that sold the most amongst its standard products. Considering the analysis, we do not recommend further pursuit of Diet Smash and Plum compared to other opportunities. It appears that while there is potential for forecasting, the significance of Plum in specific seasons is not entirely clear. Additionally, the innovative packaging proposed doesn't seem to provide a strong advantage for the product. Further analysis may be needed to determine the viability of launching this product, particularly in terms of seasonal performance and packaging effectiveness. 
+
+> MODEL Employed: Multiple Linear Regression
+
+> RECOMMENDATION: This innovation product concept has more disparate properties than (has less in common with) historical products. As a result, may prove more difficult to predict sales or model as well as other innovation concepts for this notebook effort. 
+
+
+## PRODUCT 2: Sparkling Jacceptabletlester Avocado 11Small MLT
+
+> Based on this brand, Sparkling Jacceptabletlester does not traditionally sell well across all variables. It appears to do better when it is REGULAR as opposed to DIET. Its 1.25L MULTI JUG, PACKAGE20SMALL MULTI JUG, PACKAGE2L MULTI JUG  & PACKAGE1L MULTI JUG sell better than most other packaging. Only some of its smaller packaging PACKAGE12SMALL 6ONE CUP, PACKAGE12SMALL 8ONE SHADYES JUG, PACKAGE7.5SMALL 8ONE CUP are okay sellers but not as strong as larger sizes. In terms of April, in any given year SparklingJ does not do particularly well in April. We see a winter uptick; not a hot summer seller based on looking at season and month. SparklingJ has a very small window of UNIT_SALES (<3000) to DOLLAR_SALES (<5000). Does better in Colorado and Northern regions. Avocado is a popular flavor, representing more than 7% of all flavored soft drinks in the market (~ 1.8M sales observations.) Avocado flavored drinks do not fair as well as SSD (Standard Soda Pop) 
+
+> MODEL Employed: Mulitple Linear Regression
+
+> RECOMMENDATION: Based on the client questions asked, this innovation product may be the least similar to its would-be competitors already in the market. People would find it a little out of place. The sales of SparklingJ have never been as strong as others. Although the sales of Avocado flavors are solid, this innovation product would possibly stand out from others, and potentially not in a good way. This product would likely need some market research, something we are hoping to avoid. 
+
+
+
+## PRODUCT 3: Diet Venomous Blast Energy Drink Kiwano 16 Liquid Small
+
+> The dataset for Kiwano and energy drinks is limited, with very few rows. Despite this limitation, there is still potential to develop a model that can predict launch sales. There exists an argument to create a model that predicts the sales of units of energy drinks, specifically with a size of 16 and kiwano flavor. This model could potentially be used in conjunction with the current sales rate of VENOMUS BLAST launches to provide an accurate forecast. Determining the optimal weeks for selling the product is a challenge. Historical best 13 weeks sales of either VENOMUS BLAST, energy drinks, or kiwano flavored drinks could be used as a reference for identifying potential sales periods. Given the limited data available for Kiwano and energy drinks, it is essential to approach the recommendation cautiously. Additionally, determining the best weeks for selling the product relies heavily on historical sales data, which may not accurately reflect future market conditions.
+
+> In exploring and modeling for Kiwano we found there is a sub set of that data provides to be explanitory and has some potential for prediction. In our modeling a subset of the data was selected by filtering products that matched category energy, item containing "Kiwano", and size contating "16." Then for our specific questions of when to launch and how much demaned we added in week of the year and week since lauch. With our data set we created an XGboost model that showed some predictive power. Finally, we created a dummy set of data and had our model create preditions for every combination of our features to help predict future sales.
+
+
+> MODELS Employed: Mulitple Linear Regression, XGBOOST
+
+
+> RECOMMENDATION: Overall the unique qualities of Kiwano created a path where we were able to make some predictions on what window of time would be best to launch and take a first step at unit forecasting by week. We recommend this flavor sensation for addition study to go to market. 
+
+
+## PRODUCT 4: Diet Square Mulberries Sparkling Water 10Small MLT
+
+> We do not think that we should recommend this product. We have very few observations of our Square Brand, and only 19 of those reside in the Northern Region. When widening the scope to look at other factors such as the flavor, category, and region as a whole, it continues to not make sense to sell this product for a whole year in the Northern Region. The Northern Region consistantly demonstrated a negative relationship with total dollar sales in comparison with the other regions we reviewed. The Square brand has been primarily sold in California and the Southwest so far and we don’t have sufficient data to say that this brand would do better than the other sparkling waters that have not done well in the Northern Region. From a time perspective, it also does not make sense to sell this for the whole year. The spring and especially the fall do far better than the winter in all of the regression models we ran. We wouldn’t want to recommend selling it during months where it would not perform well. From a flavor and category perspective, we were able to gain more insights such as the best type of packaging associated with the flavor, but the northern region continued to perform poorly with the flavor mulberries. 
+
+> MODEL Employed: Mulitple Linear Regression
+
+> RECOMMENDATION: We would not recommend moving forward with this product due to the small amount of historical data that we have with the brand and flavor and the poor performance of the region with similar products.
+
+## PRODUCT 5: Greetingle Health Beverage Woodsy Yellow .5L 12One Jug
+
+> "GREETINGLE Woodsy Yellow" appears to be a good opportunity for further pursuit based on available data. There are only two brands selling three Woodsy Yellow flavored products. The client asked "Swire plans to release this product for 13 weeks, but only in one region. Where would it perform best?" We unequivocally state that the Kansas market (East Kansas) is an excellent choice. And while this may be due to skewed sales represented in the East Kansas region, it would also do well in the Northern Region (East, NE Idaho, Oregon, and Washington). The packaging as proposed would not be a stretch to conceive and sell with the proposed packaging. Greetingle as a brand has seen relatively good dollar sales even with smaller volumes of unit sales. And it could use some company. There is really only one product on the market worth pursuing as a benchmark for success: "TITANS NOURISH WATER BEVERAGE WOODSY YELLOW" presents as a leading competitor. These factors led us to conduct deeper Greetingle Woodsy Yellow as a good idea for a small batch, limited market product. 
+
+> MODELS Employed: Mulitple Linear Regression, XGBOOST
+
+> RECOMMENDATION: Recommend further study for a limited release product to select markets. 
+
+
+## PRODUCT 6: Diet Energy Moonlit Casava 2L Multi Jug
+
+> "DIET MOONLIT" demonstrates decent sales performance, ranking 69th in total revenue out of 288. This indicates a moderate level of success in the market for Diet Moonlit alone. Our modeling of soft drinks with Casava, particularly coupled into the Energy category, returned good coefficients and modeling results, suggesting that there is good potential for this flavor variant, particularly in a highly caffeinated situation. The analysis identifies some 21-week stretches that appear promising for making six-month predictions. However, it is noted that the challenge lies in selecting which weeks to use for these predictions. Despite "Cassava" not being considered a top-tier flavor option, the analysis suggests the potential for "DIET MOONLIT" given its decent sales performance and good results when we run both GLM and XGBOOST models on the Cassava "innovation" data frame. While Diet Moonlit has 2L Multi JUG success, there is no combination using that package format for Casava and Energy. As Swire has success in the 2L Multi JUG arena for Diet Moonlit, there is potential for a successful product even if Casava and Energy are not historically found in that package format. Casava and Energy are historically only found in a regular caloric segment; however, combining the high predictability of Casava Energy and the high sales of Diet Moonlit, there is potential for a successful product. With identified promising weeks for predictions, there is an opportunity to leverage this information to enhance sales forecasting and strategic decision-making further.
+
+> MODELS Employed: Multiple Linear Regression, XGBOOST
+
+> RECOMMENDATION: Based on the provided information, we recommend to continue work on consideration to bring Diet Moonlit Casava Energy to market.
+
+
+## PRODUCT 7: Peppy Gentle Drink Pink Woodsy .5L Multi Jug
+
+> Through our analysis of a 'Pink Woodsy' flavored launch, there was very little evidence that further modeling would create a reliable prediction. As the historical data is missing many accurate features we would like to see in order to explain variation. A few of the features from this specific innovative product that are missing are: A. Lack of comparable flavors. Though there have been products in the past with Pink or Woodsy, there have never been any items with this combination. B. Brand 'Peppy' having no innovative product data. In our research of the brand, we found they do not have any innovation data that would give us indications of how a new product would compete if launched. C. Lack of definition of which regions or areas would be considered 'South' for this launch.
+
+
+> MODEL Employed: Multiple Linear Regression
+
+> RECOMMENDATION: With these crucial factors either being excluded from modeling or using best estimates on the 'closest' items, we do not believe moving forward with prediction of this would be advised. With a product such as this, any type of trial data or directions on which items would be most comparable would help assure accuracy.
+
+# Selected Innovation Products
+
+> 3 of the 7 potential innovation products were selected and recommended for further modeling. The XGBoost models were run on these products and the results are summarized below. The four other models we have not included for brevity and given our methods and processes are generally shown in the linear regression review sections below. 
+
+## Innovation Model 1 - Woodsy Yellow 
+
+> Item Description: Greetingle Health Beverage Woodsy Yellow .5L 12One Jug
+> a. Caloric Segment: Regular
+> b. Market Category: ING Enhanced Water
+> c. Manufacturer: Swire-CC
+> d. Brand: Greetingle
+> e. Package Type: .5L 12One Jug
+> f. Flavor: ‘Woodsy Yellow’
+> Q. Swire plans to release this product for 13 weeks, but only in one region. Which region would it
+perform best in?
+
+### Linear Regression Review
+
+
+```{r setup, include=FALSE}
+if (!require("pacman")) install.packages("pacman")
+
+# Use pacman to load (and install if necessary) the specific packages you requested
+pacman::p_load(dplyr, ggplot2, tidyverse, tidytext, skimr, readr, tidyr, lubridate, stringr, knitr, kableExtra, tidymodels, pROC, xgboost, doParallel, vip, DALEXtra)
+#have to manually load 'caret' for some reason
+
+```
+
+
+```{r}
+df <- readRDS("swire_no_nas.rds")  #load in EDA cleaned data (no nas)
+
+```
+
+```{r}
+
+#fixes the market keys to regional areas... 
+
+regions_joinme <- read.csv("states_summary.csv")
+
+unique(regions_joinme$REGION)
+# "NORTHERN"    "DESERT_SW"   "PRAIRIE"     "CALI_NEVADA"  "MOUNTAIN"    "SOCAL"   "ARIZONA"    "NEWMEXICO"   "NOCAL"    "COLORADO"    "KANSAS" 
+
+str(regions_joinme)
+# Perform a left join using the merge() function
+df <- merge(df, regions_joinme[, c("MARKET_KEY", "REGION")], by = "MARKET_KEY", all.x = TRUE)
+rm(regions_joinme)
+
+```
+
+
+
+```{r}
+# Update CALORIC_SEGMENT values: 0 if 'DIET/LIGHT', otherwise 1
+df$CALORIC_SEGMENT <- ifelse(df$CALORIC_SEGMENT == "DIET/LIGHT", 0, 1)
+df$MARKET_KEY <- as.character(df$MARKET_KEY)
+df <- df %>%
+  mutate(
+    MONTH = as.numeric(substr(DATE, 6, 7)),  # Extract the month from YYYY-MM-DD format
+    SEASON = case_when(
+      MONTH %in% c(12, 01, 02) ~ "WINTER",
+      MONTH %in% c(03, 04, 05) ~ "SPRING",
+      MONTH %in% c(06, 07, 08) ~ "SUMMER",
+      MONTH %in% c(09, 10, 11) ~ "FALL",
+      TRUE ~ NA_character_  # This is just in case there are any undefined values
+    )
+  )
+
+
+```
+
+
+
+
+```{r}
+# Making a 10% sample of the data to shrink it 
+set.seed(123) # Set a random seed for reproducibility
+sampled_df <- df[sample(1:nrow(df), 2446143), ]
+rm(df)
+```
+
+```{r include=FALSE}
+df <- sampled_df
+rm(sampled_df)
+```
+
+```{r}
+#skim(df)
+```
+
+```{r}
+summary(df)
+```
+
+
+```{r fig.width=10, fig.height=10}
+# Create a scatter plot with the regression line, colored by MANUFACTURER
+# Gives a good overview of the data sampled 
+
+ggplot(df, aes(x = UNIT_SALES, y = DOLLAR_SALES, color = MANUFACTURER)) +
+  geom_point(alpha = 0.5) +  # Adjust alpha to avoid overplotting, if necessary
+  geom_smooth(method = "lm", color = "black", se = FALSE) +  # Add linear regression line
+  labs(title = "Linear Model of UNIT_SALES vs. DOLLAR_SALES by MANUFACTURER",
+       x = "UNIT SALES",
+       y = "DOLLAR SALES") +
+  theme_minimal() +
+  theme(legend.position = "bottom")  # Adjust legend position if needed
+
+```
+
+
+
+```{r }
+
+# create a table of total values by brand
+brand_summary <- df %>%
+  group_by(BRAND) %>%
+  summarise(
+    total_units_sold = sum(UNIT_SALES),
+    total_revenue = sum(DOLLAR_SALES),
+    avg_price = total_revenue / total_units_sold,
+    total_days_sold = n() # Count the number of rows for each brand
+  ) %>%
+  arrange(desc(total_revenue)) %>%  # Order by revenue in descending order
+  mutate(rank = row_number()) 
+
+summary(brand_summary)
+
+print(brand_summary[brand_summary$BRAND == "GREETINGLE", ])
+
+
+```
+
+> GREETINGLE is a good brand ranking 47th out of 288 brands in terms of total revenue, with an average price of $2.65 slightly below the overall mean of $3.27.
+
+```{r fig.height=10, fig.width=10}
+
+# Filter the dataframe for only 'GREETINGLE'
+filtered_df <- df %>% 
+  filter(BRAND == "GREETINGLE")
+
+# Create the plot
+ggplot(filtered_df, aes(x = UNIT_SALES, y = DOLLAR_SALES)) +
+  geom_point(color = "red", alpha = 1) +  # Bright red points with full opacity
+  geom_smooth(method = "lm", color = "black", se = FALSE) +  # Add linear regression line without confidence band
+  labs(title = "Linear Model of UNIT_SALES vs. DOLLAR_SALES for GREETINGLE",
+       x = "UNIT SALES",
+       y = "DOLLAR SALES") +
+  theme_minimal() +
+  theme(legend.position = "none")  
+
+
+```
+
+> GREETINGLE has a wide body of groupings, where the one wildly steep grouping shows revenue higher at lower volume unit sales for some odd reason. This is clearly a product of odd deals made outside the norm.  
+
+
+
+```{r}
+
+# Sales by Week of the Year
+
+filtered_df %>%
+  mutate(DATE = as.Date(DATE)) %>%
+  mutate(WEEK = as.integer(format(DATE, "%U"))) %>%
+  group_by(WEEK) %>%
+  summarise(total_sales = sum(UNIT_SALES)) %>%
+  ggplot(aes(x = WEEK, y = total_sales)) +
+  geom_line(color = "black") +  # Blue line connecting points
+  labs(title = "Total Sales by Week of the Year",
+       x = "Week of the Year",
+       y = "Total Unit Sales") +
+  theme_minimal()
+```
+> GREETINGLE sells solidly from early spring (week 10) through mid-summer (week 30) and starts a slow down through the latter part of the year.
+
+```{r}
+library(zoo)
+# Calculate total sales for each group of 211 consecutive weeks (6 months)
+sales_by_group <- filtered_df %>%
+  mutate(DATE = as.Date(DATE)) %>%
+  mutate(WEEK = as.integer(format(DATE, "%U"))) %>%
+  group_by(WEEK) %>%
+  summarise(total_sales = sum(UNIT_SALES)) %>%
+  mutate(sales_in_group = rollsum(total_sales, 21, align = "left", fill = NA)) %>%
+  mutate(week_label = paste0("Week ", WEEK + 1, " to Week ", WEEK + 21)) %>%
+  arrange(WEEK) %>%  # Order by WEEK
+  filter(!is.na(sales_in_group))  # Remove rows with sales_in_group = NA
+
+# Plot the bar chart
+sales_by_group$week_label <- factor(sales_by_group$week_label, levels = sales_by_group$week_label[order(sales_by_group$WEEK)])
+ggplot(sales_by_group, aes(x = factor(week_label), y = sales_in_group)) +
+  geom_bar(stat = "identity", fill = "black") +
+  labs(title = "Total Sales for Each 6-month Grouping",
+       x = "Weeks (Starting from Week 1)",
+       y = "Total Sales") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+
+```
+> GREETINGLE shows a similar pattern across weekly groupings; that is to say its solid in early spring through mid-summer then starts a slow decline to end of year.
+
+```{r }
+#find the best 21 weeks for Woodsy sales - WOODSY YELLOW has a space in the middle
+# Calculate total sales for each group of 21 consecutive weeks
+sales_by_woodsy <- df %>%
+  filter(str_detect(ITEM, "WOODSY  YELLOW")) %>%
+  mutate(DATE = as.Date(DATE)) %>%
+  mutate(WEEK = as.integer(format(DATE, "%U"))) %>%
+  group_by(WEEK) %>%
+  summarise(total_sales = sum(UNIT_SALES)) %>%
+  mutate(sales_in_group = rollsum(total_sales, 21, align = "left", fill = NA)) %>%
+  mutate(week_label = paste0("Week ", WEEK + 1, " to Week ", WEEK + 21)) %>%
+  arrange(WEEK) %>%  # Order by WEEK
+  filter(!is.na(sales_in_group))  # Remove rows with sales_in_group = NA
+
+# Plot the bar chart
+sales_by_woodsy$week_label <- factor(sales_by_woodsy$week_label, levels = sales_by_woodsy$week_label[order(sales_by_woodsy$WEEK)])
+ggplot(sales_by_woodsy, aes(x = factor(week_label), y = sales_in_group)) +
+  geom_bar(stat = "identity", fill = "black") +
+  labs(title = "Total Sales for Each 21-Week Grouping",
+       x = "Weeks (Starting from Week 1)",
+       y = "Total Sales") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+
+```
+> Woodsy Yellow sales are best in the 21 weeks from week 14 to 34.
+
+
+```{r }
+#find the best 21 weeks for ING Enhanced Water, WOODSY, YELLOW
+# Calculate total sales for each group of 21 consecutive weeks
+
+sales_by_innovation <- df %>%
+  filter(CATEGORY == "ING ENHANCED WATER",
+         str_detect(ITEM, "WOODSY"),
+         str_detect(ITEM, "YELLOW")) %>%
+  mutate(DATE = as.Date(DATE)) %>%
+  mutate(WEEK = as.integer(format(DATE, "%U"))) %>%
+  group_by(WEEK) %>%
+  summarise(total_sales = sum(UNIT_SALES)) %>%
+  mutate(sales_in_group = rollsum(total_sales, 13, align = "left", fill = NA)) %>%
+  mutate(week_label = paste0("Week ", WEEK + 1, " to Week ", WEEK + 13)) %>%
+  arrange(WEEK) %>%  # Order by WEEK
+  filter(!is.na(sales_in_group))  # Remove rows with sales_in_group = NA
+
+# Plot the bar chart
+sales_by_innovation$week_label <- factor(sales_by_innovation$week_label, levels = sales_by_innovation$week_label[order(sales_by_innovation$WEEK)])
+ggplot(sales_by_innovation, aes(x = factor(week_label), y = sales_in_group)) +
+  geom_bar(stat = "identity", fill = "black") +
+  labs(title = "Total Sales for Each 13-Week Grouping",
+       x = "Weeks (Starting from Week 1)",
+       y = "Total Sales") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+
+```
+
+> A combination of the above shows again that most of the year is hot as things slowly taper off end of year and pick back up early spring through mid summer and hold solid.
+
+
+```{r}
+
+# Making a new smaller "innovation" data frame
+GREETINGLE_DF <- filtered_df
+#create innovation based on ING ENHANCED WATER
+innovation<- df %>%
+  filter(CATEGORY == "ING ENHANCED WATER",
+         str_detect(ITEM, "WOODSY"),
+         str_detect(ITEM, "YELLOW"))
+
+
+#unique PACKAGE string from innovation
+print(unique(innovation$PACKAGE))
+
+
+      
+library(dplyr)
+library(lubridate)
+
+innovation <- innovation %>%
+  mutate(
+    MONTH = month(ymd(DATE)),  # Extract month using lubridate's ymd function
+    MONTH = as.factor(MONTH)   # Convert the extracted month into a factor
+  )
+
+str(innovation)
+print(unique(innovation$ITEM))
+
+```
+
+```{r}
+# Count the number of unique PACKAGE column of our sample
+table(innovation$PACKAGE)
+#This gives us an idea that there are only 4 package combinations with 7 sub-string elements
+```
+
+```{r}
+# Looking at the competitors within the 'innovation' data frame
+model <- lm(UNIT_SALES ~ DOLLAR_SALES + CALORIC_SEGMENT + PACKAGE + SEASON + REGION, data = innovation)
+summary(model)
+
+```
+ 
+
+```{r}
+# Looking at the competitors within the 'innovation' data frame
+model <- lm(DOLLAR_SALES ~ UNIT_SALES + CALORIC_SEGMENT + PACKAGE + SEASON + REGION, data = innovation)
+summary(model)
+
+```
+
+> Very interesting findings when unit sales and dollar sales are alternated as the target variable. The significant differences in REGIONKANSAS between the two models highlight a unique regional effect: while there's a notable decrease in UNIT_SALES, suggesting lesser product volume sold in Kansas, DOLLAR_SALES significantly increase, indicating higher revenue per unit or preference for pricier products- or something like that. This discrepancy underscores distinct market dynamics in Kansas, where despite lower quantities, the revenue impact is markedly higher, reflecting unique consumer behavior or pricing strategies. Such findings suggest that in Kansas, market strategies should not solely focus on volume but also on the pricing and type of products offered. Conversely, the NORTHERN region coefficient presents contrasting effects in the two models: it significantly increases UNIT_SALES, indicating a higher volume of products sold in the Northern region, but it significantly decreases DOLLAR_SALES, implying lower revenue per unit or a preference for less expensive products. This contrast suggests unique market dynamics in the Northern region, where products are popular in terms of quantity but not necessarily in terms of revenue, possibly due to lower pricing or the sale of lower-priced items.
+
+
+```{r}
+# Interesting shrinking of our df where we shrink our sales and volume, and see its effect on our GREETINGLE only. 
+
+small_group <- df %>%
+  filter(UNIT_SALES < 6000, DOLLAR_SALES < 12000)
+
+#skim(small_group)
+skim(df %>% filter(BRAND == "GREETINGLE"))
+
+```
+
+
+
+
+```{r fig.width=10, fig.height=10}
+# Create a scatter plot with the regression line, colored by MANUFACTURER
+ggplot(small_group, aes(x = UNIT_SALES, y = DOLLAR_SALES, color = MANUFACTURER)) +
+  geom_point(alpha = 0.5) +  # Adjust alpha to avoid overplotting, if necessary
+  geom_smooth(method = "lm", color = "black", se = FALSE) +  # Add linear regression line without confidence band for clarity
+  labs(title = "Linear Model of UNIT_SALES vs. DOLLAR_SALES by MANUFACTURER",
+       x = "UNIT SALES",
+       y = "DOLLAR SALES") +
+  theme_minimal() +
+  theme(legend.position = "bottom") 
+
+```
+
+
+
+```{r}
+# Create a new data frame with only the rows where the ITEM column contains the words "woodsy yellow"
+wy_small <- df[grep("woodsy  yellow", df$ITEM, ignore.case = TRUE), ]
+
+```
+
+```{r}
+skim(wy_small)
+```
+
+> Woodsy Yellow shows unit sales average of 64.27 and dollar sales average of $105.30. Compare that to 10% df 142.32 is unit sales and $465.11 for dollar sales. And Greetingle sales on average are 44.50 for unit sales and $117.67 dollar sales. This makes interesting ratios. 
+
+```{r}
+
+# wy small is dataframe - caloric segment and category removed since we have only one each
+model <- lm(DOLLAR_SALES ~ UNIT_SALES + PACKAGE + CALORIC_SEGMENT + SEASON + REGION, data = wy_small)
+summary(model)
+
+
+
+```
+
+```{r}
+
+# wy small is dataframe - caloric segment and category removed since we have only one each
+model <- lm(UNIT_SALES ~  DOLLAR_SALES + PACKAGE + CALORIC_SEGMENT + SEASON + REGION, data = wy_small)
+summary(model)
+
+```
+
+
+> The simple insights of a linear regression on the data make useful points. Lets see if an XGBOOST can do better. 
+
+
+
+### XGBOOOST
+
+```{r include=FALSE}
+rm(list = ls())
+```
+
+
+```{r include=FALSE}
+# Set up
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, skimr, knitr, caret, readr, 
+               ggplot2, dplyr, tidymodels, pROC, xgboost, doParallel, vip, DALEXtra, pdp, DALEX, gridExtra)
+
+```
+
+
+```{r}
+# Load and prepare dataset, created separately for brevity derived from the wy_small but one hot encoded  
+
+df <- read.csv("woodsy_one_hot.csv") 
+df <- df %>% 
+  select(-DATE, -MONTH)
+
+```
+
+```{r}
+# Summarize the dataset
+skimr::skim(df)
+```
+
+
+
+```{r}
+
+# Split the data
+set.seed(123)
+df_testtrn <- initial_split(df, prop = 0.8, strata = UNIT_SALES)
+Train <- training(df_testtrn)
+Test <- testing(df_testtrn)
+
+# Prepare features and labels for XGBoost
+train_features <- Train[, -which(names(Train) == "UNIT_SALES")]
+train_labels <- Train$UNIT_SALES
+test_features <- Test[, -which(names(Test) == "UNIT_SALES")]
+test_labels <- Test$UNIT_SALES
+
+# Convert data to DMatrix format
+dtrain <- xgb.DMatrix(data = as.matrix(train_features), label = train_labels)
+dtest <- xgb.DMatrix(data = as.matrix(test_features), label = test_labels)
+
+```
+
+```{r}
+
+# Define XGBoost parameters
+set.seed(123)
+params <- list(
+  booster = "gbtree",
+  objective = "reg:squarederror",
+  eval_metric = "rmse",
+  eta = 0.05,
+  max_depth = 4,
+  min_child_weight = 3,
+  subsample = 0.7,
+  colsample_bytree = 0.6,
+  lambda = 1,
+  alpha = 1
+)
+
+```
+
+```{r}
+
+# Perform cross-validation to find the optimal number of boosting rounds
+cv_results <- xgb.cv(
+  params = params,
+  data = dtrain,  
+  nfold = 5,
+  nrounds = 500,  # Changed from 'num_boost_round' to 'nrounds'
+  early_stopping_rounds = 10,
+  metrics = "rmse",
+  seed = 123
+)
+best_nrounds <- cv_results$best_iteration
+
+
+```
+
+
+```{r}
+# Train the final model using the best number of rounds found
+model_xgb <- xgb.train(
+  params = params,
+  data = dtrain,
+  nrounds = best_nrounds
+)
+
+```
+
+
+
+```{r}
+
+# Make predictions and evaluate the model
+train_pred <- predict(model_xgb, dtrain)
+test_pred <- predict(model_xgb, dtest)
+train_rmse <- sqrt(mean((train_labels - train_pred)^2))
+test_rmse <- sqrt(mean((test_labels - test_pred)^2))
+
+
+```
+
+
+```{r}
+
+# Calculate R-squared for the training set
+sst_train <- sum((train_labels - mean(train_labels)) ^ 2)
+ssr_train <- sum((train_labels - train_pred) ^ 2)
+r_squared_train <- 1 - (ssr_train / sst_train)
+
+# Calculate R-squared for the test set
+sst_test <- sum((test_labels - mean(test_labels)) ^ 2)
+ssr_test <- sum((test_labels - test_pred) ^ 2)
+r_squared_test <- 1 - (ssr_test / sst_test)
+
+train_mape <- mean(abs((train_labels - train_pred) / train_labels)) * 100
+test_mape <- mean(abs((test_labels - test_pred) / test_labels)) * 100
+train_mae <- mean(abs(train_labels - train_pred))
+test_mae <- mean(abs(test_labels - test_pred))
+
+
+
+```
+
+
+```{r}
+
+cat("Model Performance Metrics:\n",
+    "--------------------------\n",
+    "Training RMSE: ", train_rmse, "\n",
+    "Test RMSE: ", test_rmse, "\n",
+    "Training R-squared: ", r_squared_train, "\n",
+    "Test R-squared: ", r_squared_test, "\n",
+    "Training MAE: ", train_mae, "\n",
+    "Test MAE: ", test_mae, "\n",
+    "Training MAPE: ", train_mape, "%\n",
+    "Test MAPE: ", test_mape, "%\n", sep="")
+
+
+```
+
+```{r}
+
+residuals_train <- train_labels - train_pred
+residuals_test <- test_labels - test_pred
+
+residuals_data <- data.frame(
+  Residuals = c(residuals_train, residuals_test),
+  Dataset = c(rep('Training', length(residuals_train)), rep('Test', length(residuals_test)))
+)
+
+# Now plotting residuals with corrected data
+ggplot(residuals_data, aes(x = Residuals, fill = Dataset)) +
+  geom_histogram(binwidth = 1, position = 'identity', alpha = 0.6) +
+  facet_wrap(~ Dataset) +
+  ggtitle('Residuals Distribution')
+
+
+```
+
+
+
+```{r}
+# Assuming train_labels, test_labels, train_pred, and test_pred are correctly defined
+
+# Adjusted Actual vs. Predicted Data Preparation
+actual_pred_data <- data.frame(
+  Actual = c(train_labels, test_labels),
+  Predicted = c(train_pred, test_pred),
+  Dataset = c(rep('Training', length(train_labels)), rep('Test', length(test_labels)))
+)
+
+# Plotting Actual vs. Predicted Values
+ggplot(actual_pred_data, aes(x = Actual, y = Predicted, colour = Dataset)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(intercept = 0, slope = 1, linetype = 'dashed', color = 'red') +
+  xlab('Actual Values') +
+  ylab('Predicted Values') +
+  scale_colour_manual(values = c('Training' = 'blue', 'Test' = 'red')) +
+  ggtitle('Actual vs. Predicted Values')
+
+
+
+
+```
+
+```{r}
+
+# Calculate feature importance
+importance_matrix <- xgb.importance(feature_names = colnames(train_features), model = model_xgb)
+
+# View the feature importance scores
+print(importance_matrix)
+
+```
+
+```{r fig.width = 10, fig.height= 8}
+# Plot the feature importance
+xgb.plot.importance(importance_matrix = importance_matrix)
+
+```
+
+```{r fig.width=10, fig.height=8}
+# Compute partial dependence data for 'DOLLAR_SALES' and 'CALORIC_SEGMENT'
+pd <- partial(model_xgb, pred.var = c("DOLLAR_SALES", "CALORIC_SEGMENT"), train = train_features, grid.resolution = 20)
+
+# Default PDP
+pdp1 <- plotPartial(pd, plot = TRUE)
+
+# Add contour lines and use a different color palette
+rwb <- colorRampPalette(c("red", "white", "blue"))
+pdp2 <- plotPartial(pd, contour = TRUE, col.regions = rwb)
+
+# 3-D surface
+pdp3 <- plotPartial(pd, levelplot = FALSE, zlab = "Predicted Outcome", drape = TRUE, colorkey = TRUE, screen = list(z = -20, x = -60))
+
+# Combine plots into one window
+grid.arrange(pdp1, pdp2, pdp3, ncol = 3)
+
+```
+
+### XGBOOST Model #2 
+>Model with NO DOLLAR SALES Variable
+
+```{r}
+# Assuming 'df' is your complete dataframe and 'UNIT_SALES' is your target variable
+df2 <- df
+# Remove DOLLAR_SALES from the features
+df2$DOLLAR_SALES <- NULL
+
+# Split the updated data into training and testing sets (assuming you're using a similar approach as before)
+set.seed(123)
+df2_testtrn <- initial_split(df2, prop = 0.8, strata = UNIT_SALES)
+Train <- training(df2_testtrn)
+Test <- testing(df2_testtrn)
+
+# Prepare features and labels for XGBoost, excluding DOLLAR_SALES
+train_features <- Train[, -which(names(Train) == "UNIT_SALES")]
+train_labels <- Train$UNIT_SALES
+test_features <- Test[, -which(names(Test) == "UNIT_SALES")]
+test_labels <- Test$UNIT_SALES
+
+# Convert data to DMatrix format for XGBoost
+dtrain <- xgb.DMatrix(data = as.matrix(train_features), label = train_labels)
+dtest <- xgb.DMatrix(data = as.matrix(test_features), label = test_labels)
+
+```
+
+```{r}
+# Assuming 'params' and 'best_nrounds' are defined as before
+
+# Train the final model without DOLLAR_SALES
+model_xgb_no_dollar_sales <- xgb.train(
+  params = params,
+  data = dtrain,
+  nrounds = best_nrounds
+)
+
+```
+
+```{r}
+
+
+# Make predictions and evaluate the model
+train_pred <- predict(model_xgb_no_dollar_sales, dtrain)
+test_pred <- predict(model_xgb_no_dollar_sales, dtest)
+train_rmse <- sqrt(mean((train_labels - train_pred)^2))
+test_rmse <- sqrt(mean((test_labels - test_pred)^2))
+
+
+```
+
+
+```{r}
+
+# Calculate R-squared for the training set
+sst_train <- sum((train_labels - mean(train_labels)) ^ 2)
+ssr_train <- sum((train_labels - train_pred) ^ 2)
+r_squared_train <- 1 - (ssr_train / sst_train)
+
+# Calculate R-squared for the test set
+sst_test <- sum((test_labels - mean(test_labels)) ^ 2)
+ssr_test <- sum((test_labels - test_pred) ^ 2)
+r_squared_test <- 1 - (ssr_test / sst_test)
+
+train_mape <- mean(abs((train_labels - train_pred) / train_labels)) * 100
+test_mape <- mean(abs((test_labels - test_pred) / test_labels)) * 100
+train_mae <- mean(abs(train_labels - train_pred))
+test_mae <- mean(abs(test_labels - test_pred))
+
+
+
+```
+
+
+```{r}
+
+cat("Model Performance Metrics:\n",
+    "--------------------------\n",
+    "Training RMSE: ", train_rmse, "\n",
+    "Test RMSE: ", test_rmse, "\n",
+    "Training R-squared: ", r_squared_train, "\n",
+    "Test R-squared: ", r_squared_test, "\n",
+    "Training MAE: ", train_mae, "\n",
+    "Test MAE: ", test_mae, "\n",
+    "Training MAPE: ", train_mape, "%\n",
+    "Test MAPE: ", test_mape, "%\n", sep="")
+
+
+```
+
+> A significant loss when DOLLAR_SALES is removed. But still we can see all the other features that together are very important.
+
+
+```{r}
+
+# Calculate feature importance
+importance_matrix2 <- xgb.importance(feature_names = colnames(train_features), model = model_xgb_no_dollar_sales)
+
+# View the feature importance scores
+print(importance_matrix2)
+```
+
+```{r fig.width= 10, fig.height= 8}
+xgb.plot.importance(importance_matrix = importance_matrix2)
+```
+
+
+```{r}
+if (!requireNamespace("pdp", quietly = TRUE)) install.packages("pdp")
+if (!requireNamespace("xgboost", quietly = TRUE)) install.packages("xgboost")
+library(pdp)
+library(xgboost)
+
+```
+
+```{r}
+pdp::partial(model_xgb_no_dollar_sales, pred.var = "REGION_KANSAS", train = train_features)
+
+
+# We know this has a negative effect on UNIT_SALES but a positive effect on DOLLAR_SALES
+```
+
+
+```{r}
+pdp::partial(model_xgb_no_dollar_sales, pred.var = "REGION_NORTHERN", train = train_features)
+```
+
+
+
+```{r fig.width=10, fig.height=8}
+
+pd <- partial(model_xgb_no_dollar_sales, pred.var = c("REGION_KANSAS", "REGION_NORTHERN"), train = train_features, grid.resolution = 20)
+
+# Default PDP
+pdp1 <- plotPartial(pd, plot = TRUE)
+
+# Add contour lines and use a different color palette
+rwb <- colorRampPalette(c("red", "white", "blue"))
+pdp2 <- plotPartial(pd, contour = TRUE, col.regions = rwb)
+
+# 3-D surface
+pdp3 <- plotPartial(pd, levelplot = FALSE, zlab = "Predicted Outcome", drape = TRUE, colorkey = TRUE, screen = list(z = -20, x = -60))
+
+# Combine plots into one window
+grid.arrange(pdp1, pdp2, pdp3, ncol = 3)
+
+```
+
+
+
+```{r include=FALSE}
+rm(list = ls())
+```
+
+
+
+## Innovation Model 2 - Cassava
+
+
+> Item Description: Diet Energy Moonlit Casava 2L Multi Jug
+> Caloric Segment: Diet
+> Market Category: Energy
+> Manufacturer: Swire-CC
+> Brand: Diet Moonlit
+> Package Type: 2L Multi Jug
+> Flavor: ‘Cassava’
+> Swire plans to release this product for 6 months. What will the forecasted demand be, in weeks, for this product?
+
+### Linear Regression Review
+
+
+```{r include=FALSE}
+if (!require("pacman")) install.packages("pacman")
+
+# Use pacman to load (and install if necessary) the specific packages you requested
+pacman::p_load(dplyr, ggplot2, tidyverse, tidytext, skimr, readr, tidyr, lubridate, stringr, knitr, kableExtra, tidymodels, pROC, xgboost, doParallel, vip, DALEXtra, zoo)
+#have to manually load 'caret' for some reason
+
+```
+
+```{r include=FALSE}
+df <- readRDS("swire_no_nas.rds")  #inject the data and we will sub-sample
+
+
+
+```
+
+```{r include=FALSE}
+
+regions_joinme <- read.csv("states_summary.csv")
+
+unique(regions_joinme$REGION)
+# "NORTHERN"    "DESERT_SW"   "PRAIRIE"     "CALI_NEVADA"  "MOUNTAIN"    "SOCAL"   "ARIZONA"    "NEWMEXICO"   "NOCAL"    "COLORADO"    "KANSAS" 
+
+str(regions_joinme)
+# Perform a left join using the merge() function
+df <- merge(df, regions_joinme[, c("MARKET_KEY", "REGION")], by = "MARKET_KEY", all.x = TRUE)
+rm(regions_joinme)
+
+```
+
+
+
+```{r include=FALSE}
+# Update CALORIC_SEGMENT values: 0 if 'DIET/LIGHT', otherwise 1
+df$CALORIC_SEGMENT <- ifelse(df$CALORIC_SEGMENT == "DIET/LIGHT", 0, 1)
+df$MARKET_KEY <- as.character(df$MARKET_KEY)
+df <- df %>%
+  mutate(
+    MONTH = as.numeric(substr(DATE, 6, 7)),  # Extract the month from YYYY-MM-DD format
+    SEASON = case_when(
+      MONTH %in% c(12, 01, 02) ~ "WINTER",
+      MONTH %in% c(03, 04, 05) ~ "SPRING",
+      MONTH %in% c(06, 07, 08) ~ "SUMMER",
+      MONTH %in% c(09, 10, 11) ~ "FALL",
+      TRUE ~ NA_character_  # This is just in case there are any undefined values
+    )
+  )
+
+
+
+```
+
+
+```{r include=FALSE}
+# Assuming df is your dataframe
+set.seed(123) # Set a random seed for reproducibility
+sampled_df <- df[sample(1:nrow(df), 2446143), ]
+rm(df)
+```
+
+```{r include=FALSE}
+df <- sampled_df
+rm(sampled_df)
+```
+
+```{r include=FALSE}
+#skim(df)
+```
+
+```{r}
+#summary(df) Same output as shown
+```
+
+
+```{r }
+
+# create a table of total values by brand
+brand_summary <- df %>%
+  group_by(BRAND) %>%
+  summarise(
+    total_units_sold = sum(UNIT_SALES),
+    total_revenue = sum(DOLLAR_SALES),
+    avg_price = total_revenue / total_units_sold,
+    total_days_sold = n() # Count the number of rows for each brand
+  ) %>%
+  arrange(desc(total_revenue)) %>%  # Order by revenue in descending order
+  mutate(rank = row_number()) 
+
+summary(brand_summary)
+
+print(brand_summary[brand_summary$BRAND == "DIET MOONLIT", ])
+
+
+```
+
+> Diet Moonlit is a rising star ranking 69 out of 288 brands in terms of total revenue, with an average price of $3.50 slightly above the overall mean of $3.27.
+
+```{r fig.height=10, fig.width=10}
+
+# Filter the dataframe for only 'DIET SMASH'
+filtered_df <- df %>% 
+  filter(BRAND == "DIET MOONLIT")
+
+# Create the plot
+ggplot(filtered_df, aes(x = UNIT_SALES, y = DOLLAR_SALES)) +
+  geom_point(color = "red", alpha = 1) +  # Bright red points with full opacity
+  geom_smooth(method = "lm", color = "black", se = FALSE) +  # Add linear regression line without confidence band
+  labs(title = "Linear Model of UNIT_SALES vs. DOLLAR_SALES for DIET SMASH",
+       x = "UNIT SALES",
+       y = "DOLLAR SALES") +
+  theme_minimal() +
+  theme(legend.position = "none")  
+
+
+```
+
+> DIET MOONLIT has a tight cluster below 1,000 unit sales and $2,500 revenue, but there are some remarkable high fliers nearing $20,000 and just over 3000 units.
+
+
+```{r}
+filtered_df %>%
+  mutate(DATE = as.Date(DATE)) %>%
+  mutate(WEEK = as.integer(format(DATE, "%U"))) %>%
+  group_by(WEEK) %>%
+  summarise(total_sales = sum(UNIT_SALES)) %>%
+  ggplot(aes(x = WEEK, y = total_sales)) +
+  geom_line(color = "black") +  # Blue line connecting points
+  labs(title = "Total Sales by Week of the Year",
+       x = "Week of the Year",
+       y = "Total Unit Sales") +
+  theme_minimal()
+```
+> DIET MOONLIT shows many peaks and valleys in sales by week.
+
+```{r}
+library(zoo)
+# Calculate total sales for each group of 211 consecutive weeks (6 months)
+sales_by_group <- filtered_df %>%
+  mutate(DATE = as.Date(DATE)) %>%
+  mutate(WEEK = as.integer(format(DATE, "%U"))) %>%
+  group_by(WEEK) %>%
+  summarise(total_sales = sum(UNIT_SALES)) %>%
+  mutate(sales_in_group = rollsum(total_sales, 21, align = "left", fill = NA)) %>%
+  mutate(week_label = paste0("Week ", WEEK + 1, " to Week ", WEEK + 21)) %>%
+  arrange(WEEK) %>%  # Order by WEEK
+  filter(!is.na(sales_in_group))  # Remove rows with sales_in_group = NA
+
+# Plot the bar chart
+sales_by_group$week_label <- factor(sales_by_group$week_label, levels = sales_by_group$week_label[order(sales_by_group$WEEK)])
+ggplot(sales_by_group, aes(x = factor(week_label), y = sales_in_group)) +
+  geom_bar(stat = "identity", fill = "black") +
+  labs(title = "Total Sales for Each 6-month Grouping",
+       x = "Weeks (Starting from Week 1)",
+       y = "Total Sales") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+
+```
+> DIET MOONLIT has it's best 6 month runs week 7 - 27 historically.
+
+```{r }
+#find the best 21 weeks for Casava sales
+# Calculate total sales for each group of 21 consecutive weeks
+sales_by_casava <- df %>%
+  filter(str_detect(ITEM, "CASAVA")) %>%
+  mutate(DATE = as.Date(DATE)) %>%
+  mutate(WEEK = as.integer(format(DATE, "%U"))) %>%
+  group_by(WEEK) %>%
+  summarise(total_sales = sum(UNIT_SALES)) %>%
+  mutate(sales_in_group = rollsum(total_sales, 21, align = "left", fill = NA)) %>%
+  mutate(week_label = paste0("Week ", WEEK + 1, " to Week ", WEEK + 21)) %>%
+  arrange(WEEK) %>%  # Order by WEEK
+  filter(!is.na(sales_in_group))  # Remove rows with sales_in_group = NA
+
+# Plot the bar chart
+sales_by_casava$week_label <- factor(sales_by_casava$week_label, levels = sales_by_casava$week_label[order(sales_by_casava$WEEK)])
+ggplot(sales_by_casava, aes(x = factor(week_label), y = sales_in_group)) +
+  geom_bar(stat = "identity", fill = "black") +
+  labs(title = "Total Sales for Each 21-Week Grouping",
+       x = "Weeks (Starting from Week 1)",
+       y = "Total Sales") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+
+```
+> Casava sales are best in the 21 weeks from week 14 to 34.
+
+
+```{r}
+#find the best 21 weeks for casava, energy, diet
+# Calculate total sales for each group of 21 consecutive weeks
+
+sales_by_innovation <- df %>%
+  filter(CATEGORY == "ENERGY",
+         str_detect(ITEM, "CASAVA")) %>%
+  mutate(DATE = as.Date(DATE)) %>%
+  mutate(WEEK = as.integer(format(DATE, "%U"))) %>%
+  group_by(WEEK) %>%
+  summarise(total_sales = sum(UNIT_SALES)) %>%
+  mutate(sales_in_group = rollsum(total_sales, 13, align = "left", fill = NA)) %>%
+  mutate(week_label = paste0("Week ", WEEK + 1, " to Week ", WEEK + 13)) %>%
+  arrange(WEEK) %>%  # Order by WEEK
+  filter(!is.na(sales_in_group))  # Remove rows with sales_in_group = NA
+
+# Plot the bar chart
+sales_by_innovation$week_label <- factor(sales_by_innovation$week_label, levels = sales_by_innovation$week_label[order(sales_by_innovation$WEEK)])
+ggplot(sales_by_innovation, aes(x = factor(week_label), y = sales_in_group)) +
+  geom_bar(stat = "identity", fill = "black") +
+  labs(title = "Total Sales for Each 13-Week Grouping",
+       x = "Weeks (Starting from Week 1)",
+       y = "Total Sales") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+
+```
+
+
+```{r}
+# Make a new smaller "innovation" data frame
+#create innovation based on Energy, Casava
+innovation<- df %>% 
+  filter(CATEGORY == "ENERGY",
+         str_detect(ITEM, "CASAVA"))
+
+
+#unique PACKAGE string from innovation
+print(unique(innovation$PACKAGE))
+
+
+      
+library(dplyr)
+library(lubridate)
+
+innovation <- innovation %>%
+  mutate(
+    MONTH = month(ymd(DATE)),  # Extract month using lubridate's ymd function
+    MONTH = as.factor(MONTH)   # Convert the extracted month into a factor
+  )
+
+str(innovation)
+print(unique(innovation$ITEM))
+
+```
+
+```{r}
+# Count the number of unique PACKAGE column of our sample
+table(innovation$PACKAGE)
+
+```
+
+```{r}
+
+# Creating an 'innovation' data frame
+model <- lm(DOLLAR_SALES ~ UNIT_SALES + CALORIC_SEGMENT + PACKAGE + SEASON + REGION, data = innovation)
+summary(model)
+
+
+
+
+```
+> Cassava and Energy together do quite well (not possible to also add in DIET, but we will expect that folks that like Cassava Regular Energy will also like DIET). R2 of 0.98. Summer is statistically signficant, but negatively correlated with sales. 
+SOCAL and NOCAL are significant in the positive direction.
+
+
+```{r}
+
+
+library(dplyr)
+
+small_group <- df %>%
+  filter(UNIT_SALES < 7000, DOLLAR_SALES < 20000)
+
+skim(small_group)
+skim(df %>% filter(BRAND == "DIET MOONLIT"))
+
+```
+
+> Our small df has a higher mean of unit sales and dollar sales of 149 and $496. as compared to the full df of DIET MOONLIT of 98 and $344.
+
+
+
+```{r fig.width=10, fig.height=10}
+# Create a scatter plot with the regression line, colored by MANUFACTURER
+ggplot(small_group, aes(x = UNIT_SALES, y = DOLLAR_SALES, color = MANUFACTURER)) +
+  geom_point(alpha = 0.5) +  # Adjust alpha to avoid overplotting, if necessary
+  geom_smooth(method = "lm", color = "black", se = FALSE) +  # Add linear regression line without confidence band for clarity
+  labs(title = "Linear Model of UNIT_SALES vs. DOLLAR_SALES by MANUFACTURER",
+       x = "UNTI SALES",
+       y = "DOLLAR SALES") +
+  theme_minimal() +
+  theme(legend.position = "bottom")  # Adjust legend position if needed
+
+```
+
+
+> Behold the realm of DIET MOONLIT. Certain items sell much better, or wosrse with consideration of slop of dollars to units sold. While most of its realm is in the lower left hand portion, other brands have sales through both its unit and dollar sales vectors.
+
+
+
+
+```{r}
+# Investigating drinks with casava as a flavor in the Item description.
+# Create a new data frame with only the rows where the ITEM column contains the word 'casava'
+casava_small <- df[grep("casava", df$ITEM, ignore.case = TRUE), ]
+
+```
+
+```{r}
+skim(casava_small)
+```
+
+> Casava has a much lower unit sales and dollar sales at 71 and $184 than Diet Moonlight at 98 and $344. 
+
+```{r}
+
+# casava small is dataframe
+model <- lm(DOLLAR_SALES ~ UNIT_SALES + CALORIC_SEGMENT + PACKAGE + CATEGORY + SEASON + REGION, data = casava_small)
+summary(model)
+
+
+```
+
+> Our Casava small has a lower R2 of 0.85, but also contains much more data with nearly 42K observations compared to our innovation df at about 5 observations. There are many signficant features, but nothing that swings the needle in huge ways.
+
+
+
+```{r include=FALSE}
+# Reworking the subset casava for more feature engineering.
+casava_small <- casava_small %>%
+  mutate(
+    PACKAGE2 = str_extract(ITEM, "(CUP|JUG).*"),  # Extracts the part from CUP or JUG to the end.
+    ITEM = str_replace(ITEM, "(CUP|JUG).*", "")  # Replaces the CUP/JUG and everything after it with empty string in ITEM.
+  )
+
+
+#casava_small
+```
+
+```{r include=FALSE}
+
+
+casava_small <- casava_small %>%
+  mutate(
+    TEMP = str_extract(ITEM, "\\d+\\.?\\d*.*"), # Extracts the part from the first number to the end.
+    PACKAGE2 = if_else(is.na(PACKAGE2), TEMP, paste(PACKAGE2, TEMP)), # Combines existing PACKAGE2 with new extraction if needed.
+    ITEM = str_replace(ITEM, "\\d+\\.?\\d*.*", ""), # Removes the numeric part and everything after it from ITEM.
+    TEMP = NULL  # Removes the temporary column.
+  )
+
+#casava_small
+```
+
+
+
+```{r include=FALSE}
+
+casava_small <- casava_small %>%
+  mutate(
+    GENTLE_DRINK = if_else(str_detect(ITEM, "GENTLE DRINK"), 1, 0), # Assigns 1 if "GENTLE DRINK" exists, otherwise 0.
+    ITEM = str_replace(ITEM, "GENTLE DRINK", "") # Removes "GENTLE DRINK" from ITEM.
+  )
+#casava_small
+```
+
+```{r include=FALSE}
+
+casava_small <- casava_small %>%
+  mutate(
+    ENERGY_DRINK = if_else(str_detect(ITEM, "ENERGY DRINK"), 1, 0), # Assigns 1 if "ENERGY DRINK" exists, otherwise 0.
+    ITEM = str_replace(ITEM, "ENERGY DRINK", "") # Removes "ENERGY DRINK" from ITEM.
+  )
+
+#casava_small
+```
+
+
+```{r include=FALSE}
+
+# Define the pattern as a regular expression
+pattern <- "ZERO CALORIES|ZERO CALORIE|ZERO SUGAR|SUGAR FREE|NO CALORIES"
+
+casava_small <- casava_small %>%
+  mutate(
+    CALORIC_SEGMENT_TEXT = str_extract(ITEM, pattern), # Extracts matching text based on the pattern.
+    ITEM = str_replace_all(ITEM, pattern, "") # Removes extracted text from ITEM.
+  )
+
+#casava_small
+```
+
+
+```{r include=FALSE}
+library(dplyr)
+library(stringr)
+
+casava_small <- casava_small %>%
+  mutate(
+    CALORIC_SEGMENT_TEXT = if_else(str_detect(ITEM, "\\bDIET\\b"), 
+                                   if_else(is.na(CALORIC_SEGMENT_TEXT), "DIET", paste(CALORIC_SEGMENT_TEXT, "DIET", sep=", ")), 
+                                   CALORIC_SEGMENT_TEXT)
+  )
+#casava_small
+```
+
+```{r include=FALSE}
+
+
+# Function to remove the second instance of any repeating word
+remove_second_instance <- function(item) {
+  words <- unlist(str_split(item, "\\s+")) # Split item into words
+  unique_words <- unique(words) # Get unique words to check for repeats
+  for (word in unique_words) {
+    word_indices <- which(words == word) # Find all indices of the current word
+    if (length(word_indices) > 1) { # If there is more than one occurrence
+      words[word_indices[2]] <- "" # Remove the second occurrence
+    }
+  }
+  return(paste(words, collapse = " ")) # Reconstruct sentence without the second instance
+}
+
+# Apply the function to the 'ITEM' column
+casava_small <- casava_small %>%
+  mutate(ITEM = sapply(ITEM, remove_second_instance))
+
+
+# Remove specific columns
+casava_small <- select(casava_small, -PACKAGE2, -GENTLE_DRINK, -ENERGY_DRINK, -CALORIC_SEGMENT_TEXT)
+
+```
+
+```{r}
+rm(list = ls())
+
+#head(casava_small)
+```
+
+
+> DIET MOONLIT has pretty decent sales at 69th place in total revenue. Casava is not the sexiest flavor in town, but with our innovation dataframe the R2 is quite high (although it is based on regular and no specific package type). There are some weeks that look great for 6 month predictions, it's just a matter of deciding which ones to use.
+
+
+### XGBOOST
+
+
+
+```{r include=FALSE}
+# Set up
+# Set up
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, skimr, knitr, caret, readr, 
+               ggplot2, dplyr, tidymodels, pROC, xgboost, doParallel, vip, DALEXtra, pdp, DALEX, gridExtra)
+
+```
+
+
+```{r}
+# Load and prepare dataset
+df <- read.csv("casava_one_hot.csv") 
+# Load and prepare dataset 
+
+#str(df)
+
+df <- df %>% 
+  #select(-DATE, -MONTH, -SEASON, -BRAND, -REGION, -ITEM )
+  select(-DATE, -MONTH, -SEASON)
+
+```
+
+```{r}
+# Summarize the dataset
+skimr::skim(df)
+```
+
+```{r}
+#remove top one percent of unit sales to clean up outliers
+df <- df %>% 
+  filter(UNIT_SALES < quantile(UNIT_SALES, 0.99))
+
+```
+
+
+
+
+
+```{r}
+# Split the data
+set.seed(123)
+df_testtrn <- initial_split(df, prop = 0.8, strata = UNIT_SALES)
+Train <- training(df_testtrn)
+Test <- testing(df_testtrn)
+
+# Prepare features and labels for XGBoost
+train_features <- Train[, -which(names(Train) == "UNIT_SALES")]
+train_labels <- Train$UNIT_SALES
+test_features <- Test[, -which(names(Test) == "UNIT_SALES")]
+test_labels <- Test$UNIT_SALES
+
+# Convert data to DMatrix format
+dtrain <- xgb.DMatrix(data = as.matrix(train_features), label = train_labels)
+dtest <- xgb.DMatrix(data = as.matrix(test_features), label = test_labels)
+
+```
+
+```{r}
+
+# Define XGBoost parameters
+set.seed(123)
+params <- list(
+  booster = "gbtree",
+  objective = "reg:squarederror",
+  eval_metric = "rmse",
+  eta = 0.05,
+  max_depth = 4,
+  min_child_weight = 3,
+  subsample = 0.7,
+  colsample_bytree = 0.6,
+  lambda = 1,
+  alpha = 1
+)
+
+```
+
+```{r}
+
+# Perform cross-validation to find the optimal number of boosting rounds
+cv_results <- xgb.cv(
+  params = params,
+  data = dtrain,  
+  nfold = 5,
+  nrounds = 500,  # Changed from 'num_boost_round' to 'nrounds'
+  early_stopping_rounds = 10,
+  metrics = "rmse",
+  seed = 123
+)
+best_nrounds <- cv_results$best_iteration
+
+
+```
+
+
+```{r}
+# Train the final model using the best number of rounds found
+model_xgb <- xgb.train(
+  params = params,
+  data = dtrain,
+  nrounds = best_nrounds
+)
+
+```
+
+
+
+```{r}
+
+# Make predictions and evaluate the model
+train_pred <- predict(model_xgb, dtrain)
+test_pred <- predict(model_xgb, dtest)
+train_rmse <- sqrt(mean((train_labels - train_pred)^2))
+test_rmse <- sqrt(mean((test_labels - test_pred)^2))
+
+
+```
+
+
+```{r}
+
+# Calculate R-squared for the training set
+sst_train <- sum((train_labels - mean(train_labels)) ^ 2)
+ssr_train <- sum((train_labels - train_pred) ^ 2)
+r_squared_train <- 1 - (ssr_train / sst_train)
+
+# Calculate R-squared for the test set
+sst_test <- sum((test_labels - mean(test_labels)) ^ 2)
+ssr_test <- sum((test_labels - test_pred) ^ 2)
+r_squared_test <- 1 - (ssr_test / sst_test)
+
+train_mape <- mean(abs((train_labels - train_pred) / train_labels)) * 100
+test_mape <- mean(abs((test_labels - test_pred) / test_labels)) * 100
+train_mae <- mean(abs(train_labels - train_pred))
+test_mae <- mean(abs(test_labels - test_pred))
+
+
+
+```
+
+
+```{r}
+
+cat("Model Performance Metrics:\n",
+    "--------------------------\n",
+    "Training RMSE: ", train_rmse, "\n",
+    "Test RMSE: ", test_rmse, "\n",
+    "Training R-squared: ", r_squared_train, "\n",
+    "Test R-squared: ", r_squared_test, "\n",
+    "Training MAE: ", train_mae, "\n",
+    "Test MAE: ", test_mae, "\n",
+    "Training MAPE: ", train_mape, "%\n",
+    "Test MAPE: ", test_mape, "%\n", sep="")
+
+
+```
+
+
+
+```{r}
+# Correcting Residuals Data Frame
+# Assuming 'train_labels' and 'test_labels' contain the actual values,
+# and 'train_pred' and 'test_pred' contain your model's predictions:
+
+residuals_train <- train_labels - train_pred
+residuals_test <- test_labels - test_pred
+
+residuals_data <- data.frame(
+  Residuals = c(residuals_train, residuals_test),
+  Dataset = c(rep('Training', length(residuals_train)), rep('Test', length(residuals_test)))
+)
+
+# Now plotting residuals with corrected data
+ggplot(residuals_data, aes(x = Residuals, fill = Dataset)) +
+  geom_histogram(binwidth = 1, position = 'identity', alpha = 0.6) +
+  facet_wrap(~ Dataset) +
+  ggtitle('Residuals Distribution')
+
+
+```
+
+
+
+```{r}
+# Assuming train_labels, test_labels, train_pred, and test_pred are correctly defined
+
+# Adjusted Actual vs. Predicted Data Preparation
+actual_pred_data <- data.frame(
+  Actual = c(train_labels, test_labels),
+  Predicted = c(train_pred, test_pred),
+  Dataset = c(rep('Training', length(train_labels)), rep('Test', length(test_labels)))
+)
+
+# Plotting Actual vs. Predicted Values
+ggplot(actual_pred_data, aes(x = Actual, y = Predicted, colour = Dataset)) +
+  geom_point(alpha = 0.6) +
+  geom_abline(intercept = 0, slope = 1, linetype = 'dashed', color = 'red') +
+  xlab('Actual Values') +
+  ylab('Predicted Values') +
+  scale_colour_manual(values = c('Training' = 'blue', 'Test' = 'red')) +
+  ggtitle('Actual vs. Predicted Values')
+
+
+
+
+```
+
+```{r}
+
+
+library(xgboost)
+
+# Calculate feature importance
+importance_matrix <- xgb.importance(feature_names = colnames(train_features), model = model_xgb)
+
+# View the feature importance scores
+print(importance_matrix)
+
+```
+
+```{r fig.width = 10, fig.height= 8}
+# Plot the feature importance
+xgb.plot.importance(importance_matrix = importance_matrix)
+
+```
+
+```{r fig.width=10, fig.height=8}
+# Compute partial dependence data for 'DOLLAR_SALES' and 'CASAVA', CALORIC_SEGMENT, and "ENERGY
+# pd <- partial(model_xgb, pred.var = c("DOLLAR_SALES", "CASAVA", "CALORIC_SEGMENT", ENERGY"), train = train_features, grid.resolution = 20)
+# 
+# # Default PDP
+# pdp1 <- plotPartial(pd, plot = TRUE)
+# 
+# # Add contour lines and use a different color palette
+# rwb <- colorRampPalette(c("red", "white", "blue"))
+# pdp2 <- plotPartial(pd, contour = TRUE, col.regions = rwb)
+# 
+# # 3-D surface
+# pdp3 <- plotPartial(pd, levelplot = FALSE, zlab = "Predicted Outcome", drape = TRUE, colorkey = TRUE, screen = list(z = -20, x = -60))
+# 
+# # Combine plots into one window
+# grid.arrange(pdp1, pdp2, pdp3, ncol = 3)
+
+```
+
+### XGBOOST Model #2 
+>Model with NO DOLLAR SALES Variable
+
+```{r}
+# Assuming 'df' is your complete dataframe and 'UNIT_SALES' is your target variable
+df2 <- df
+# Remove DOLLAR_SALES from the features
+df2$DOLLAR_SALES <- NULL
+
+# Split the updated data into training and testing sets (assuming you're using a similar approach as before)
+set.seed(123)
+df2_testtrn <- initial_split(df2, prop = 0.8, strata = UNIT_SALES)
+Train <- training(df2_testtrn)
+Test <- testing(df2_testtrn)
+
+# Prepare features and labels for XGBoost, excluding DOLLAR_SALES
+train_features <- Train[, -which(names(Train) == "UNIT_SALES")]
+train_labels <- Train$UNIT_SALES
+test_features <- Test[, -which(names(Test) == "UNIT_SALES")]
+test_labels <- Test$UNIT_SALES
+
+# Convert data to DMatrix format for XGBoost
+dtrain <- xgb.DMatrix(data = as.matrix(train_features), label = train_labels)
+dtest <- xgb.DMatrix(data = as.matrix(test_features), label = test_labels)
+
+```
+
+```{r}
+# Assuming 'params' and 'best_nrounds' are defined as before
+
+# Train the final model without DOLLAR_SALES
+model_xgb_no_dollar_sales <- xgb.train(
+  params = params,
+  data = dtrain,
+  nrounds = best_nrounds
+)
+
+```
+
+```{r}
+
+
+# Make predictions and evaluate the model
+train_pred <- predict(model_xgb_no_dollar_sales, dtrain)
+test_pred <- predict(model_xgb_no_dollar_sales, dtest)
+train_rmse <- sqrt(mean((train_labels - train_pred)^2))
+test_rmse <- sqrt(mean((test_labels - test_pred)^2))
+
+
+```
+
+
+```{r}
+
+# Calculate R-squared for the training set
+sst_train <- sum((train_labels - mean(train_labels)) ^ 2)
+ssr_train <- sum((train_labels - train_pred) ^ 2)
+r_squared_train <- 1 - (ssr_train / sst_train)
+
+# Calculate R-squared for the test set
+sst_test <- sum((test_labels - mean(test_labels)) ^ 2)
+ssr_test <- sum((test_labels - test_pred) ^ 2)
+r_squared_test <- 1 - (ssr_test / sst_test)
+
+train_mape <- mean(abs((train_labels - train_pred) / train_labels)) * 100
+test_mape <- mean(abs((test_labels - test_pred) / test_labels)) * 100
+train_mae <- mean(abs(train_labels - train_pred))
+test_mae <- mean(abs(test_labels - test_pred))
+
+
+
+```
+
+
+```{r}
+
+cat("Model Performance Metrics:\n",
+    "--------------------------\n",
+    "Training RMSE: ", train_rmse, "\n",
+    "Test RMSE: ", test_rmse, "\n",
+    "Training R-squared: ", r_squared_train, "\n",
+    "Test R-squared: ", r_squared_test, "\n",
+    "Training MAE: ", train_mae, "\n",
+    "Test MAE: ", test_mae, "\n",
+    "Training MAPE: ", train_mape, "%\n",
+    "Test MAPE: ", test_mape, "%\n", sep="")
+
+
+```
+
+
+
+
+```{r}
+
+# Calculate feature importance
+importance_matrix2 <- xgb.importance(feature_names = colnames(train_features), model = model_xgb_no_dollar_sales)
+
+# View the feature importance scores
+print(importance_matrix2)
+```
+
+```{r fig.width= 10, fig.height= 8}
+xgb.plot.importance(importance_matrix = importance_matrix2)
+```
+
+
+
+```{r}
+if (!requireNamespace("pdp", quietly = TRUE)) install.packages("pdp")
+if (!requireNamespace("xgboost", quietly = TRUE)) install.packages("xgboost")
+library(pdp)
+library(xgboost)
+
+```
+
+
+
+
+```{r}
+pdp::partial(model_xgb_no_dollar_sales, pred.var = "WEEK_OF_YEAR", train = train_features)
+
+pd <- partial(model_xgb_no_dollar_sales, pred.var = "WEEK_OF_YEAR", train = train_features, grid.resolution = 20)
+
+# Default PDP
+pdp1 <- plotPartial(pd, plot = TRUE)
+
+# plot
+grid.arrange(pdp1)
+```
+
+
+> Based on the Casava Energy Drink 2L MULTI JUG innovation datafram we expect the best 6 months to be between about weeks 17 and weeks 38.
+
+```{r}
+rm(list = ls())
+
+```
+
+
+## Innovation Model 3 - Kiwano Venomous Blast
+
+
+
+### Linear Regression Review
+
+
+```{r include=FALSE}
+if (!require("pacman")) install.packages("pacman")
+
+# Use pacman to load (and install if necessary) the specific packages you requested
+pacman::p_load(dplyr, ggplot2, tidyverse, tidytext, skimr, readr, tidyr, lubridate, stringr, knitr, kableExtra, tidymodels, pROC, xgboost, doParallel, vip, DALEXtra)
+#have to manually load 'caret' for some reason
+
+```
+
+
+```{r include=FALSE}
+df <- readRDS("swire_no_nas.rds")  #inject the data and we will sub-sample
+
+```
+
+```{r include=FALSE}
+
+regions_joinme <- read.csv("states_summary.csv")
+
+unique(regions_joinme$REGION)
+# "NORTHERN"    "DESERT_SW"   "PRAIRIE"     "CALI_NEVADA"  "MOUNTAIN"    "SOCAL"   "ARIZONA"    "NEWMEXICO"   "NOCAL"    "COLORADO"    "KANSAS" 
+
+str(regions_joinme)
+# Perform a left join using the merge() function
+df <- merge(df, regions_joinme[, c("MARKET_KEY", "REGION")], by = "MARKET_KEY", all.x = TRUE)
+rm(regions_joinme)
+
+```
+
+
+
+```{r include=FALSE}
+# Update CALORIC_SEGMENT values: 0 if 'DIET/LIGHT', otherwise 1
+df$CALORIC_SEGMENT <- ifelse(df$CALORIC_SEGMENT == "DIET/LIGHT", 0, 1)
+df$MARKET_KEY <- as.character(df$MARKET_KEY)
+df <- df %>%
+  mutate(
+    MONTH = as.numeric(substr(DATE, 6, 7)),  # Extract the month from YYYY-MM-DD format
+    SEASON = case_when(
+      MONTH %in% c(12, 01, 02) ~ "WINTER",
+      MONTH %in% c(03, 04, 05) ~ "SPRING",
+      MONTH %in% c(06, 07, 08) ~ "SUMMER",
+      MONTH %in% c(09, 10, 11) ~ "FALL",
+      TRUE ~ NA_character_  # This is just in case there are any undefined values
+    )
+  )
+
+
+
+
+```
+
+
+```{r include=FALSE}
+# Assuming df is your dataframe
+set.seed(123) # Set a random seed for reproducibility
+sampled_df <- df[sample(1:nrow(df), 2446143), ]
+rm(df)
+```
+
+```{r include=FALSE}
+df <- sampled_df
+rm(sampled_df)
+```
+
+```{r}
+#skim(df) #same initial dataset used in previous models
+```
+
+
+
+
+
+```{r}
+# create a table of total values by brand
+brand_summary <- df %>%
+  group_by(BRAND) %>%
+  summarise(
+    total_units_sold = sum(UNIT_SALES),
+    total_revenue = sum(DOLLAR_SALES),
+    avg_price = total_revenue / total_units_sold,
+    total_days_sold = n() # Count the number of rows for each brand
+  ) %>%
+  arrange(desc(total_revenue)) %>%  # Order by revenue in descending order
+  mutate(rank = row_number()) 
+
+summary(brand_summary)
+print(brand_summary[brand_summary$BRAND == "VENOMOUS BLAST", ])
+
+```
+>VENOMOUS BLAST does have a decent amount of sales ranking 130 of 288 in total revenue. They surprisingly have a low average price and a low total days sold.  
+
+
+```{r fig.height=10, fig.width=10}
+
+# Filter the dataframe for only 'Venomous Blast'
+filtered_df <- df %>% 
+  filter(BRAND == "VENOMOUS BLAST")
+
+summary(filtered_df)
+
+# Create the plot
+ggplot(filtered_df, aes(x = UNIT_SALES, y = DOLLAR_SALES)) +
+  geom_point(color = "red", alpha = 1) +  # Bright red points with full opacity
+  geom_smooth(method = "lm", color = "black", se = FALSE) +  # Add linear regression line without confidence band
+  labs(title = "Linear Model of UNIT_SALES vs. DOLLAR_SALES for VENOMOUS BLAST",
+       x = "UNIT SALES",
+       y = "DOLLAR SALES") +
+  theme_minimal() +
+  theme(legend.position = "none")  
+
+
+```
+
+
+```{r}
+filtered_df %>%
+  mutate(DATE = as.Date(DATE)) %>%
+  mutate(WEEK = as.integer(format(DATE, "%U"))) %>%
+  group_by(WEEK) %>%
+  summarise(total_sales = sum(UNIT_SALES)) %>%
+  ggplot(aes(x = WEEK, y = total_sales)) +
+  geom_line(color = "black") +  # Blue line connecting points
+  labs(title = "Total Sales by Week of the Year",
+       x = "Week of the Year",
+       y = "Total Unit Sales") +
+  theme_minimal()
+```
+> This shows that sales by week of the year of VENOMOUS BLAST is very spread out
+
+
+```{r}
+#find the best 13 weeks
+library(zoo)
+# Calculate total sales for each group of 13 consecutive weeks
+sales_by_group <- filtered_df %>%
+  mutate(DATE = as.Date(DATE)) %>%
+  mutate(WEEK = as.integer(format(DATE, "%U"))) %>%
+  group_by(WEEK) %>%
+  summarise(total_sales = sum(UNIT_SALES)) %>%
+  mutate(sales_in_group = rollsum(total_sales, 13, align = "left", fill = NA)) %>%
+  mutate(week_label = paste0("Week ", WEEK + 1, " to Week ", WEEK + 13)) %>%
+  arrange(WEEK) %>%  # Order by WEEK
+  filter(!is.na(sales_in_group))  # Remove rows with sales_in_group = NA
+
+# Plot the bar chart
+sales_by_group$week_label <- factor(sales_by_group$week_label, levels = sales_by_group$week_label[order(sales_by_group$WEEK)])
+ggplot(sales_by_group, aes(x = factor(week_label), y = sales_in_group)) +
+  geom_bar(stat = "identity", fill = "black") +
+  labs(title = "Total Sales for Each 13-Week Grouping",
+       x = "Weeks (Starting from Week 1)",
+       y = "Total Sales") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+> From this graph we see that weeks 24 to 36 historically have the highest unit sales of VENOMOUS BLAST
+
+
+```{r}
+#find the best 13 weeks for Kiwano sales
+# Calculate total sales for each group of 13 consecutive weeks
+sales_by_kiwano <- df %>%
+  filter(str_detect(ITEM, "KIWANO")) %>%
+  mutate(DATE = as.Date(DATE)) %>%
+  mutate(WEEK = as.integer(format(DATE, "%U"))) %>%
+  group_by(WEEK) %>%
+  summarise(total_sales = sum(UNIT_SALES)) %>%
+  mutate(sales_in_group = rollsum(total_sales, 13, align = "left", fill = NA)) %>%
+  mutate(week_label = paste0("Week ", WEEK + 1, " to Week ", WEEK + 13)) %>%
+  arrange(WEEK) %>%  # Order by WEEK
+  filter(!is.na(sales_in_group))  # Remove rows with sales_in_group = NA
+
+# Plot the bar chart
+sales_by_kiwano$week_label <- factor(sales_by_kiwano$week_label, levels = sales_by_kiwano$week_label[order(sales_by_kiwano$WEEK)])
+ggplot(sales_by_kiwano, aes(x = factor(week_label), y = sales_in_group)) +
+  geom_bar(stat = "identity", fill = "black") +
+  labs(title = "Total Sales for Each 13-Week Grouping",
+       x = "Weeks (Starting from Week 1)",
+       y = "Total Sales") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+>This graph shows the best weeks sales of any kiwano drink is week 19 to 31. 
+
+
+```{r}
+#find the best 13 weeks for Kiwano sales
+# Calculate total sales for each group of 13 consecutive weeks
+sales_by_energy <- df %>%
+  filter(CATEGORY == "ENERGY",
+         str_detect(ITEM, "KIWANO"),
+         str_detect(PACKAGE, "16")) %>%
+  mutate(DATE = as.Date(DATE)) %>%
+  mutate(WEEK = as.integer(format(DATE, "%U"))) %>%
+  group_by(WEEK) %>%
+  summarise(total_sales = sum(UNIT_SALES)) %>%
+  mutate(sales_in_group = rollsum(total_sales, 13, align = "left", fill = NA)) %>%
+  mutate(week_label = paste0("Week ", WEEK + 1, " to Week ", WEEK + 13)) %>%
+  arrange(WEEK) %>%  # Order by WEEK
+  filter(!is.na(sales_in_group))  # Remove rows with sales_in_group = NA
+
+# Plot the bar chart
+sales_by_energy$week_label <- factor(sales_by_energy$week_label, levels = sales_by_energy$week_label[order(sales_by_energy$WEEK)])
+ggplot(sales_by_energy, aes(x = factor(week_label), y = sales_in_group)) +
+  geom_bar(stat = "identity", fill = "black") +
+  labs(title = "Total Sales for Each 13-Week Grouping",
+       x = "Weeks (Starting from Week 1)",
+       y = "Total Sales") +
+  theme_minimal() +
+  theme(axis.text.x = element_text(angle = 90, hjust = 1)) 
+```
+>This graph shows the best weeks for sales of Energy drinks with Kiwano flavors and packageing 16 is weeks 12 to 24
+
+
+```{r}
+innovation <- df %>% 
+  filter(CATEGORY == "ENERGY",
+         CALORIC_SEGMENT == 0,
+         str_detect(ITEM, "KIWANO"),
+         str_detect(PACKAGE, "16"))
+
+print(unique(innovation$ITEM))
+#there are 10 items with energy, diet, kiwano that come in packs of 16, but none of them are from VENOMOUS BLAST. 
+
+
+
+library(dplyr)
+library(lubridate)
+
+innovation <- innovation %>%
+  mutate(
+    MONTH = month(ymd(DATE)),  # Extract month using lubridate's ymd function
+    MONTH = as.factor(MONTH)   # Convert the extracted month into a factor
+  )
+
+str(innovation)
+```
+
+
+```{r}
+# Assuming 'innovation' is your data frame
+model <- lm(DOLLAR_SALES ~ UNIT_SALES + CALORIC_SEGMENT + PACKAGE + SEASON + REGION, data = innovation)
+summary(model)
+
+```
+
+
+```{r}
+library(dplyr)
+
+small_group <- df %>%
+  filter(UNIT_SALES < 3300, DOLLAR_SALES < 3200)
+
+skim(small_group)
+```
+
+```{r fig.width=10, fig.height=10}
+# Create a scatter plot with the regression line, colored by MANUFACTURER
+ggplot(small_group, aes(x = UNIT_SALES, y = DOLLAR_SALES, color = MANUFACTURER)) +
+  geom_point(alpha = 0.5) +  # Adjust alpha to avoid overplotting, if necessary
+  geom_smooth(method = "lm", color = "black", se = FALSE) +  # Add linear regression line without confidence band for clarity
+  labs(title = "Linear Model of UNIT_SALES vs. DOLLAR_SALES by MANUFACTURER",
+       x = "UNTI SALES",
+       y = "DOLLAR SALES") +
+  theme_minimal() +
+  theme(legend.position = "bottom")  # Adjust legend position if needed
+
+```
+
+
+```{r}
+kiwano_small <- df[grep("kiwano", df$ITEM, ignore.case = TRUE), ]
+
+```
+
+```{r}
+skim(kiwano_small)
+```
+
+
+
+
+```{r}
+
+# Assuming 'innovation' is your data frame
+model <- lm(DOLLAR_SALES ~ UNIT_SALES + CALORIC_SEGMENT + PACKAGE + CATEGORY + SEASON + REGION, data = kiwano_small)
+summary(model)
+
+
+```
+> Though Kiwano and energy drinks have very few rows. I do think there is potential here to find a good fitting model that can predict launch sales. I am thinking that if we can get a model that will predict the sales of uints of energy drinks, with size 16, and kiwano flavor we can then use that combined with the current sales rate of VENOMUS BLAST launches to get an accurate forecast. As far as selection of what weeks would be best to sell I don't see any other way than by using historical best 13 weeks sales of either Venmous Blast, energy drinks, or kiwano flavored drinks. 
+
+
+### XGBOOST
+
+
+```{r include=FALSE}
+
+if (!require("pacman")) install.packages("pacman")
+pacman::p_load(tidyverse, skimr, knitr, caret, readr, 
+               ggplot2, dplyr, tidymodels, pROC, xgboost, doParallel, vip, DALEXtra)
+```
+
+
+```{r include=FALSE}
+# Read the CSV file
+kiwano_small <- read.csv("kiwano_small.csv")
+# Convert 'Date' column to Date format
+kiwano_small$DATE <- as.Date(kiwano_small$DATE)
+# List to store unique values for each variable
+unique_values_list <- list()
+# Columns to get unique values for
+columns_to_get_unique_values <- c("BRAND", "PACKAGE", "ITEM", "REGION", "SEASON")
+# Get unique values for each variable and store in the list
+for (col in columns_to_get_unique_values) {
+  unique_values_list[[col]] <- unique(kiwano_small[[col]])
+}
+# Loop over unique regions and create new columns
+for (region in unique_values_list$REGION) {
+  kiwano_small[[region]] <- as.integer(grepl(region, kiwano_small$REGION))
+}
+# Loop over unique brands and create new columns
+for (brand in unique_values_list$BRAND) {
+  kiwano_small[[brand]] <- as.integer(grepl(brand, kiwano_small$BRAND))
+}
+# Loop over unique brands and create new columns
+for (item in unique_values_list$ITEM) {
+  kiwano_small[[item]] <- as.integer(grepl(item, kiwano_small$ITEM))
+}
+# Loop over unique regions and create new columns
+for (package in unique_values_list$PACKAGE) {
+  kiwano_small[[package]] <- as.integer(grepl(package, kiwano_small$PACKAGE))
+}
+# Loop over unique regions and create new columns
+for (season in unique_values_list$SEASON) {
+  kiwano_small[[season]] <- as.integer(grepl(season, kiwano_small$SEASON))
+}
+# Add new columns for week since launch and week of the year
+kiwano_small <- kiwano_small %>%
+  mutate(
+    Week_Of_Year = week(DATE)
+  ) %>%
+  group_by(ITEM) %>%
+  mutate(
+    Week_Since_Launch = as.integer((DATE - min(DATE)) / 7) + 1
+  ) %>%
+  ungroup()  # Ungroup the data to ensure the next operation applies to the entire data frame
+# Remove unnecessary columns
+one_hot_kiwano <- kiwano_small %>%
+  select(-MARKET_KEY, -CALORIC_SEGMENT, -CATEGORY, -MANUFACTURER, -BRAND, -REGION, -PACKAGE, -SEASON, -ITEM)
+head(one_hot_kiwano)
+write.csv(one_hot_kiwano, "one_hot_kiwano.csv", row.names = FALSE)
+```
+
+
+
+```{r}
+# Load and prepare dataset
+df1 <- read.csv("one_hot_kiwano.csv") 
+df1 <- df1 %>% 
+  select(-DATE, -MONTH, -WINTER, -SPRING, -FALL, -DOLLAR_SALES, -SUMMER)
+```
+
+```{r}
+# Summarize the dataset
+skimr::skim(df1)
+```
+> One Hot encoded down to just over 8000 rows from sampled data and up to 33 features.
+
+```{r}
+#Remove outliers in top 1% of Unit Sales. 
+df1 <- df1 %>% filter(UNIT_SALES < quantile(UNIT_SALES, 0.99))
+```
+
+```{r}
+# Split the data
+set.seed(123)
+df_testtrn <- initial_split(df1, prop = 0.8, strata = UNIT_SALES)
+Train <- training(df_testtrn)
+Test <- testing(df_testtrn)
+# Prepare features and labels for XGBoost
+train_features <- Train[, -which(names(Train) == "UNIT_SALES")]
+train_labels <- Train$UNIT_SALES
+test_features <- Test[, -which(names(Test) == "UNIT_SALES")]
+test_labels <- Test$UNIT_SALES
+# Convert data to DMatrix format
+dtrain <- xgb.DMatrix(data = as.matrix(train_features), label = train_labels)
+dtest <- xgb.DMatrix(data = as.matrix(test_features), label = test_labels)
+```
+
+```{r}
+# Define XGBoost parameters
+set.seed(123)
+params <- list(
+  booster = "gbtree",
+  objective = "reg:squarederror",
+  eval_metric = "rmse",
+  eta = 0.05,
+  max_depth = 4,
+  min_child_weight = 3,
+  subsample = 0.7,
+  colsample_bytree = 0.6,
+  lambda = 1,
+  alpha = 1
+)
+```
+
+```{r}
+# Perform cross-validation to find the optimal number of boosting rounds
+cv_results <- xgb.cv(
+  params = params,
+  data = dtrain,  
+  nfold = 5,
+  nrounds = 500,  # Changed from 'num_boost_round' to 'nrounds'
+  early_stopping_rounds = 10,
+  metrics = "rmse",
+  seed = 123
+)
+best_nrounds <- cv_results$best_iteration
+```
+
+```{r}
+# Train the final model using the best number of rounds found
+model_xgb <- xgb.train(
+  params = params,
+  data = dtrain,
+  nrounds = best_nrounds
+)
+```
+
+```{r}
+# Make predictions and evaluate the model
+train_pred <- predict(model_xgb, dtrain)
+test_pred <- predict(model_xgb, dtest)
+train_rmse <- sqrt(mean((train_labels - train_pred)^2))
+test_rmse <- sqrt(mean((test_labels - test_pred)^2))
+```
+
+```{r}
+# Calculate R-squared for the training set
+sst_train <- sum((train_labels - mean(train_labels)) ^ 2)
+ssr_train <- sum((train_labels - train_pred) ^ 2)
+r_squared_train <- 1 - (ssr_train / sst_train)
+# Calculate R-squared for the test set
+sst_test <- sum((test_labels - mean(test_labels)) ^ 2)
+ssr_test <- sum((test_labels - test_pred) ^ 2)
+r_squared_test <- 1 - (ssr_test / sst_test)
+train_mape <- mean(abs((train_labels - train_pred) / train_labels)) * 100
+test_mape <- mean(abs((test_labels - test_pred) / test_labels)) * 100
+train_mae <- mean(abs(train_labels - train_pred))
+test_mae <- mean(abs(test_labels - test_pred))
+```
+
+```{r}
+cat("Model Performance Metrics:\n",
+    "--------------------------\n",
+    "Training RMSE: ", train_rmse, "\n",
+    "Test RMSE: ", test_rmse, "\n",
+    "Training R-squared: ", r_squared_train, "\n",
+    "Test R-squared: ", r_squared_test, "\n",
+    "Training MAE: ", train_mae, "\n",
+    "Test MAE: ", test_mae, "\n",
+    "Training MAPE: ", train_mape, "%\n",
+    "Test MAPE: ", test_mape, "%\n", sep="")
+```
+
+>For the Kiwano Energy model, Our train RMSE is 100.29 and test 109.32. We expect to see the drop from train to test. With the difference we may need to check if there is slight overfitting. With the R2 for test and train are both moderate at .68 training .67 testing, this indicates there is some but not all variance eplained by our model. Our MAE also is low and does not contain a significant difference between training and test. The last metric, MAPE, both values are at 232% meaning that we are with about 224% of the actual values. Overall this model does show some predictive power but with more features we maybe able to get stronger predictive power. 
+
+```{r}
+# Calculate feature importance
+importance_matrix2 <- xgb.importance(feature_names = colnames(train_features), model = model_xgb)
+# View the feature importance scores
+print(importance_matrix2)
+xgb.plot.importance(importance_matrix = importance_matrix2)
+```
+
+>From this Importance matrix we see that brand and size seem to be the two biggest contributors to our model. We also see that the created featrure Week_Since_Launche is playing a large part in the creation of predictions.  
+
+
+# NEXT STEPS & FINAL THOUGHTS
+
+> Our next series of processes, for presentation to the client, include revisiting a number of critical variables and insights we found along the way through this model submission. This includes deliberate forecasting and time series modeling on real datasets that represent products that any new innovation would hope to pursue in the market. We will also focus on demand in prescriptive analytics. There are infinite tasks we could employ. 
+
+# TEAM PARTICIPATION
+
+> All team members participated equally to the creation of this notebook. Each member took a lengthy look at each of the questions posed by the client, Swire, and we argued over those that presented an evident way forward. Our team is aware that this project is barely half over and the submission of this notebook constitutes the basis on which we will substantiate claims made to the client. 
+
